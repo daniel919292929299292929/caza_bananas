@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caza Bananas</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            border: 5px solid #8B4513;
+            background-color: #ADD8E6;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+        }
+
+        #game-area {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: url('background.jpg'); /* Opcional */
+            background-size: cover;
+            background-position: center;
+        }
+
+        #player {
+            position: absolute;
+            bottom: 10px;
+            width: 100px;
+            height: 100px;
+            background-image: url('player.png'); /* Imagen del jugador */
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            left: calc(50% - 40px);
+            z-index: 10;
+        }
+
+        .banana {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-image: url('banana.png'); /* IMAGEN DE LA BANANA AMARILLA */
+            background-size: cover;
+            background-position: center;
+            z-index: 5;
+        }
+
+        .banana.green {
+            background-image: url('banana_verde.png'); /* IMAGEN DE LA BANANA VERDE */
+    width: 30px; /* Por ejemplo, si quieres que los verdes sean más pequeños */
+    height: 30px;
+}
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 1.5em;
+            color: #333;
+            font-weight: bold;
+            z-index: 100;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 2em;
+            text-align: center;
+            z-index: 200;
+            display: none;
+        }
+
+        #game-over h2 {
+            margin-bottom: 20px;
+            color: #FFD700;
+        }
+
+        #game-over button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        #game-over button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="game-area">
+            <div id="player"></div>
+            <div id="score">Puntuación: 0</div>
+            <div id="game-over">
+                <h2>¡Juego Terminado!</h2>
+                <p>¡Atrapaste un plátano verde!</p>
+                <button id="restart-button">Jugar de Nuevo</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const gameArea = document.getElementById('game-area');
+        const player = document.getElementById('player');
+        const scoreDisplay = document.getElementById('score');
+        const gameOverScreen = document.getElementById('game-over');
+        const restartButton = document.getElementById('restart-button');
+
+        const gameWidth = gameArea.clientWidth;
+        const gameHeight = gameArea.clientHeight;
+
+        let playerX = gameWidth / 2 - player.clientWidth / 2;
+        let score = 0;
+        let bananas = [];
+        let gameInterval;
+        let bananaSpawnInterval;
+        let isGameOver = false;
+
+        // Variables para la velocidad y frecuencia
+        let initialBananaSpeed = 3;
+        let initialSpawnDelay = 1200;
+        const speedIncreaseFactor = 0.3;
+        const spawnDelayDecreaseFactor = 75;
+
+        // Variables para plátanos verdes
+        let bananasCaught = 0;       // Contador para las bananas amarillas atrapadas
+        let greenBananaFrequency = 5; // Empezamos con 1 plátano verde cada 5 bananas (aprox.)
+        const greenBananaFrequencyDecrease = 1; // Cuánto disminuye la frecuencia cada vez que aumenta la dificultad
+        const minGreenBananaFrequency = 1; // Frecuencia mínima (1 plátano verde por cada banana)
+
+
+        let currentBananaSpeed = initialBananaSpeed;
+        let currentSpawnDelay = initialSpawnDelay;
+        
+
+        // Establecer la posición inicial del jugador
+        player.style.left = playerX + 'px';
+
+        // Movimiento del jugador con el mouse
+        gameArea.addEventListener('mousemove', (e) => {
+            if (isGameOver) return;
+            let newPlayerX = e.clientX - gameArea.getBoundingClientRect().left - player.clientWidth / 2;
+            playerX = Math.max(0, Math.min(newPlayerX, gameWidth - player.clientWidth));
+            player.style.left = playerX + 'px';
+        });
+
+        // Función para crear una banana
+        function createBanana() {
+            if (isGameOver) return;
+
+            const banana = document.createElement('div');
+            banana.classList.add('banana');
+            
+            let type = 'yellow';
+
+            // Lógica para plátano verde: Usamos un número aleatorio para decidir
+            if (Math.random() * greenBananaFrequency < 1) { 
+                 banana.classList.add('green');
+                 type = 'green';
+                 console.log("Creando banana VERDE!");
+            } else {
+                console.log("Creando banana AMARILLA!");
+            }
+            
+            banana.style.left = Math.random() * (gameWidth - banana.clientWidth) + 'px';
+            gameArea.appendChild(banana);
+            bananas.push({ element: banana, y: 0, x: parseFloat(banana.style.left), type: type });
+        }
+
+        // Bucle principal del juego
+        function gameLoop() {
+            if (isGameOver) return;
+
+            bananas.forEach((banana, index) => {
+                banana.y += currentBananaSpeed;
+                banana.element.style.top = banana.y + 'px';
+
+                // Si la banana cae fuera del área de juego
+                if (banana.y + banana.element.clientHeight > gameHeight) {
+                    if (banana.type === 'yellow') { // Si una banana AMARILLA se cae, Game Over
+                        endGame();
+                        return; 
+                    }
+                    // Si es una banana verde que se cayó, simplemente se remueve
+                    gameArea.removeChild(banana.element);
+                    bananas.splice(index, 1);
+                    return;
+                }
+
+                // Detección de colisiones
+                const playerRect = player.getBoundingClientRect();
+                const bananaRect = banana.element.getBoundingClientRect();
+
+                if (
+                    bananaRect.bottom >= playerRect.top &&
+                    bananaRect.top <= playerRect.bottom &&
+                    bananaRect.right >= playerRect.left &&
+                    bananaRect.left <= playerRect.right
+                ) {
+                    // Banana atrapada
+                    gameArea.removeChild(banana.element);
+                    bananas.splice(index, 1);
+
+                    if (banana.type === 'yellow') {
+                        score++;
+                        bananasCaught++; // Solo cuenta bananas amarillas para la dificultad
+                    } else if (banana.type === 'green') {
+                        // ¡ATRAPÓ UN PLÁTANO VERDE! GAME OVER.
+                        endGame(); 
+                        return; // Salir de la función para no seguir procesando
+                    }
+                    scoreDisplay.textContent = `Puntuación: ${score}`;
+
+                    // Aumentar dificultad cada 10 bananas amarillas atrapadas
+                    if (bananasCaught > 0 && bananasCaught % 10 === 0 && bananasCaught % 10 < 11) {
+                        currentBananaSpeed += speedIncreaseFactor;
+                        currentSpawnDelay = Math.max(500, currentSpawnDelay - spawnDelayDecreaseFactor);
+                        
+                        // Aumentar la frecuencia de plátanos verdes
+                        greenBananaFrequency = Math.max(minGreenBananaFrequency, greenBananaFrequency - greenBananaFrequencyDecrease);
+
+                        clearInterval(bananaSpawnInterval);
+                        bananaSpawnInterval = setInterval(createBanana, currentSpawnDelay);
+                        
+                        console.log(`Dificultad aumentada. Velocidad: ${currentBananaSpeed.toFixed(1)}, Retraso: ${currentSpawnDelay}ms, Frecuencia de verdes: 1 en cada ${greenBananaFrequency} bananas`);
+                    }
+                }
+            });
+        }
+
+        // Función para iniciar el juego
+        function startGame() {
+            score = 0;
+            bananasCaught = 0;      // Reiniciar contador de bananas amarillas atrapadas
+            scoreDisplay.textContent = `Puntuación: ${score}`;
+            playerX = gameWidth / 2 - player.clientWidth / 2;
+            player.style.left = playerX + 'px';
+            
+            // Limpiar todas las bananas existentes visualmente y del array
+            bananas.forEach(banana => gameArea.removeChild(banana.element));
+            bananas = [];
+            
+            isGameOver = false;
+            gameOverScreen.style.display = 'none';
+
+            // Reiniciar velocidad y retraso a sus valores iniciales
+            currentBananaSpeed = initialBananaSpeed;
+            currentSpawnDelay = initialSpawnDelay;
+            greenBananaFrequency = 5; // Resetear la frecuencia de bananas verdes
+
+            // Limpiar cualquier intervalo anterior para evitar múltiples ejecuciones
+            clearInterval(gameInterval);
+            clearInterval(bananaSpawnInterval);
+
+            // Iniciar nuevos intervalos para el bucle de juego y la aparición de bananas
+            gameInterval = setInterval(gameLoop, 20);
+            bananaSpawnInterval = setInterval(createBanana, currentSpawnDelay);
+        }
+
+        // Función para terminar el juego
+        function endGame() {
+            isGameOver = true;
+            clearInterval(gameInterval);
+            clearInterval(bananaSpawnInterval);
+            gameOverScreen.style.display = 'flex';
+        }
+
+        // Event listener para el botón de reiniciar
+        restartButton.addEventListener('click', startGame);
+
+        // Iniciar el juego automáticamente al cargar la página
+        startGame();
+    </script>
+</body>
+</html>
